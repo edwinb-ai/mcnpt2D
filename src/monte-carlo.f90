@@ -1,162 +1,176 @@
 program main
-    use types, only: dp
-    use parameters
-    use utils
-    use energies
-    use movement
-    use, intrinsic :: iso_fortran_env, only: output_unit
-    implicit none
+   use types, only: dp
+   use parameters
+   use utils
+   use energies
+   use movement
+   use, intrinsic :: iso_fortran_env, only: output_unit
+   implicit none
 
-    ! Local scalar variables
-    real(dp) :: d, volratio, rng, ener
-    real(dp) :: rhoaverage, rhoave, current_volume, rhoprom
-    integer :: rngint, i, j, k, nattemp, nacc
-    integer :: thermsteps, eqsteps, u, vacc, vattemp
-    integer :: v, avevolfreq, accsize
-    ! Local arrays
-    real(dp), allocatable :: x(:), y(:), z(:)
-    real(dp), allocatable :: rhoacc(:), volacc(:), volsqacc(:)
+   ! Local scalar variables
+   real(dp) :: d, volratio, rng, ener
+   real(dp) :: rhoaverage, rhoave, current_volume, rhoprom
+   integer :: rngint, i, j, k, nattemp, nacc
+   integer :: thermsteps, eqsteps, u, vacc, vattemp
+   integer :: v, avevolfreq, accsize, w
+   ! Local arrays
+   real(dp), allocatable :: x(:), y(:)
+   real(dp), allocatable :: rhoacc(:), volacc(:), volsqacc(:)
 
-    ! Initialize the RNG
-    call random_init(.false., .true.)
+   ! Initialize the RNG
+   call random_init(.false., .true.)
 
-    ! Read an input file that contains all the necessary information
-    call parse_input('input.in', eqsteps, thermsteps, avevolfreq)
-    
-    ! Update the simulation parameters with this information
-    boxl = (np / rho)**(1.0_dp/3.0_dp)
-    rc = boxl / 2.0_dp
-    d = (1.0_dp / rho)**(1.0_dp/3.0_dp)
+   ! Read an input file that contains all the necessary information
+   call parse_input('input.in', eqsteps, thermsteps, avevolfreq)
 
-    ! Initialization of variables
-    nattemp = 0
-    nacc = 1
-    rhoaverage = 0.0_dp
-    rhoave = 0.0_dp
-    rhoprom = 0.0_dp
-    vacc = 1
-    vattemp = 0
-    j = 0
-    current_volume = 0.0_dp
+   ! Update the simulation parameters with this information
+   boxl = sqrt(np / rho)
+   rc = boxl / 2.0_dp
+   d = sqrt(1.0_dp / rho)
 
-    ! Write information to screen
-    write(unit=output_unit, fmt='(a,f8.4)') 'Cut-off radius = ', rc
-    write(unit=output_unit, fmt='(a,f8.4)') 'Mean interparticle distance: ', d
-    write(unit=output_unit, fmt='(a,f8.4)') 'Reduced pressure = ', pressure
-    write(unit=output_unit, fmt='(a,f8.4)') 'Reference reduced density = ', rho
-    write(unit=output_unit, fmt='(a,f8.4)') 'Reduced temperature = ', ktemp
+   ! Initialization of variables
+   nattemp = 0
+   nacc = 1
+   rhoaverage = 0.0_dp
+   rhoave = 0.0_dp
+   rhoprom = 0.0_dp
+   vacc = 1
+   vattemp = 0
+   j = 0
+   current_volume = 0.0_dp
 
-    ! Allocate memory for arrays
-    allocate(x(np), y(np), z(np))
-    accsize = eqsteps / avevolfreq
-    allocate(rhoacc(accsize), volacc(accsize), volsqacc(accsize))
-    rhoacc = 0.0_dp
-    volacc = 0.0_dp
-    volsqacc = 0.0_dp
+   ! Write information to screen
+   write(unit=output_unit, fmt='(a,f8.4)') 'Cut-off radius = ', rc
+   write(unit=output_unit, fmt='(a,f8.4)') 'Mean interparticle distance: ', d
+   write(unit=output_unit, fmt='(a,f8.4)') 'Reduced pressure = ', pressure
+   write(unit=output_unit, fmt='(a,f8.4)') 'Reference reduced density = ', rho
+   write(unit=output_unit, fmt='(a,f8.4)') 'Reduced temperature = ', ktemp
 
-    ! Either read a configuration file or generate a new one
-    if (from_file) then
-        write(unit=output_unit, fmt='(a)') 'Reading from positions file...'
-        open(newunit=u, file = 'configuration.dat', status = 'unknown')
-            do i = 1, np
-                read(u, *) x(i), y(i), z(i)
-            end do
-        close(u)
-    else
-        ! initial configuration as a simple lattice
-        call iniconfig(x, y, z, d)
-    end if
+   ! Allocate memory for arrays
+   allocate(x(np), y(np))
+   accsize = eqsteps / avevolfreq
+   allocate(rhoacc(accsize), volacc(accsize), volsqacc(accsize))
+   rhoacc = 0.0_dp
+   volacc = 0.0_dp
+   volsqacc = 0.0_dp
 
-    ! Initial configuration energy, regardless of how it was created
-    call energy(x, y, z, ener)
-    write(unit=output_unit, fmt='(a,f8.4)') 'E/N for the initial configuration:', ener/np
+   ! Either read a configuration file or generate a new one
+   if (from_file) then
+      write(unit=output_unit, fmt='(a)') 'Reading from positions file...'
+      open(newunit=u, file = 'configuration.dat', status = 'unknown')
+      do i = 1, np
+         read(u, *) x(i), y(i)
+      end do
+      close(u)
+   else
+      ! initial configuration as a simple lattice
+      call iniconfig(x, y, d)
+      ! write the initial configuration to file
+      open(newunit=u, file = 'init_conf.dat', status = 'unknown')
+      write(unit=u, fmt='(i3)') np
+      do i = 1, np
+         write(unit=u, fmt='(2f12.8)') x(i), y(i)
+      end do
+      close(u)
+   end if
 
-    ! MC cycle to thermalize the system
-    do i = 1, thermsteps
-        ! Loop for the total number of particles
-        do k = 1, np
-            call random_number(rng)
-            rngint = 1 + floor((np + 1) * rng)
+   ! Initial configuration energy, regardless of how it was created
+   call energy(x, y, ener)
+   write(unit=output_unit, fmt='(a,f8.4)') 'E/N for the initial configuration:', ener/np
 
-            if (rngint <= np) then
-                call mcmove(x, y, z, ener, nattemp, nacc)
-                call adjust(nattemp, nacc, del, 0.35_dp)
-            else
-                call mcvolume(x, y, z, rhoave, ener, vattemp, vacc)
-                call adjust(vattemp, vacc, dispvol, 0.15_dp)
-            end if
-        end do
+   ! MC cycle to thermalize the system
+   do i = 1, thermsteps
+      ! Loop for the total number of particles
+      do k = 1, np
+         call random_number(rng)
+         rngint = 1 + floor((np + 1) * rng)
 
-        ! Print information to screen
-        if (mod(i, 10000) == 0) then
-            write(unit=output_unit, fmt='(a)') 'MC Step, Particle disp, Energy / N, Disp ratio'
-            write(unit=output_unit, fmt='(i10, 3f8.4)') i, del, ener/real(np, dp), &
-                & real(nacc, dp) / real(nattemp, dp)
-            write(unit=output_unit, fmt='(a)') 'MC Step, Density average, box size, Vol ratio, Vol disp'
-            volratio = real(vacc, dp) / real(vattemp, dp)
-            write(unit=output_unit, fmt='(i10, 4f8.4)') i, rhoave / real(vacc, dp), &
-                & boxl, volratio, dispvol
-        end if
-    end do
+         if (rngint <= np) then
+            call mcmove(x, y, ener, nattemp, nacc)
+            call adjust(nattemp, nacc, del, 0.45_dp)
+         else
+            call mcvolume(x, y, rhoave, ener, vattemp, vacc)
+            call adjust(vattemp, vacc, dispvol, 0.2_dp)
+         end if
+      end do
 
-    ! Reset accumulation variables
-    nattemp = 0
-    nacc = 1
-    vattemp = 0
-    vacc = 1
-    ! Start accumulating results
-    write(unit=output_unit, fmt='(a)') 'Averaging starts...'
-    ! Open the necessary files for saving thermodynamical quantities
-    open(newunit=u, file='energy.dat', status='unknown')
-    open(newunit=v, file='density.dat', status='unknown')
-    ! Production cyle
-    do i = 1, eqsteps
-        do k = 1, np
-            call random_number(rng)
-            rngint = 1 + floor((np + 1) * rng)
+      ! Print information to screen
+      if (mod(i, 10000) == 0) then
+         write(unit=output_unit, fmt='(a)') 'MC Step, Particle disp, Energy / N, Disp ratio'
+         write(unit=output_unit, fmt='(i10, 3f8.4)') i, del, ener/real(np, dp), &
+         & real(nacc, dp) / real(nattemp, dp)
+         write(unit=output_unit, fmt='(a)') 'MC Step, Density average, box size, Vol ratio, Vol disp'
+         volratio = real(vacc, dp) / real(vattemp, dp)
+         write(unit=output_unit, fmt='(i10, 4f8.4)') i, rhoave / real(vacc, dp), &
+         & boxl, volratio, dispvol
+      end if
+   end do
 
-            if (rngint <= np) then
-                call mcmove(x, y, z, ener, nattemp, nacc)
-            else
-                call mcvolume(x, y, z, rhoave, ener, vattemp, vacc)
-            end if
-        end do
-        
-        if (mod(i, avevolfreq) == 0) then
-            ! Save the value for the energy
-            write(unit=u, fmt='(i12.2, f15.10)') i, ener/real(np, dp)
-            
-            ! Update the accumulation index
-            j = j + 1
+   ! Reset accumulation variables
+   nattemp = 0
+   nacc = 1
+   vattemp = 0
+   vacc = 1
+   ! Start accumulating results
+   write(unit=output_unit, fmt='(a)') 'Averaging starts...'
+   ! Open the necessary files for saving thermodynamical quantities
+   open(newunit=u, file='energy.dat', status='unknown')
+   open(newunit=v, file='density.dat', status='unknown')
+   ! Opne file for saving snapshots
+   open(newunit=w, file='trajectory.dat', status='unknown')
+   ! Production cyle
+   do i = 1, eqsteps
+      do k = 1, np
+         call random_number(rng)
+         rngint = 1 + floor((np + 1) * rng)
 
-            ! Accumulate the results for the density
-            current_volume = real(np, dp) / rho
-            rhoaverage = rhoaverage + rho
-            rhoprom = rhoaverage / real(j, dp)
-            rhoacc(j) = rho
-            volacc(j) = current_volume
-            volsqacc(j) = current_volume**2.0_dp
+         if (rngint <= np) then
+            call mcmove(x, y, ener, nattemp, nacc)
+         else
+            call mcvolume(x, y, rhoave, ener, vattemp, vacc)
+         end if
+      end do
 
-            ! Save all results to file
-            write(unit=v, fmt='(2f17.10)') rhoprom, current_volume
-        end if
-    end do
+      if (mod(i, avevolfreq) == 0) then
+         ! Save the value for the energy
+         write(unit=u, fmt='(i12.2, f15.10)') i, ener/real(np, dp)
 
-    ! Close off files that were opened for saving information
-    close(u)
-    close(v)
+         ! Update the accumulation index
+         j = j + 1
 
-    ! Do some averaging for the density
-    call calc_variable(rhoacc, 'Density', 'average_density.dat')
-    ! Do some averaging for the volume
-    call calc_variable(volacc, 'Volume', 'average_volume.dat')
-    ! Do some averaging for the squared volume
-    call calc_variable(volsqacc, 'Squared Volume', 'average_sqvolume.dat')
+         ! Accumulate the results for the density
+         current_volume = real(np, dp) / rho
+         rhoaverage = rhoaverage + rho
+         rhoprom = rhoaverage / real(j, dp)
+         rhoacc(j) = rho
+         volacc(j) = current_volume
+         volsqacc(j) = current_volume**2.0_dp
 
-    ! write the final configuration to file
-    open(newunit=u, file = 'configuration.dat', status = 'unknown')
-    do i = 1, np
-        write(unit=u, fmt='(3f14.8)') x(i), y(i), z(i)
-    end do
-    close(u)
+         ! Save all results to file
+         write(unit=v, fmt='(2f17.10)') rhoprom, current_volume
+
+         ! Save the positions and simulation information
+         do i = 1, np
+            write(unit=u, fmt='(2f14.8)') x(i), y(i)
+         end do
+      end if
+   end do
+
+   ! Close off files that were opened for saving information
+   close(u)
+   close(v)
+
+   ! Do some averaging for the density
+   call calc_variable(rhoacc, 'Density', 'average_density.dat')
+   ! Do some averaging for the volume
+   call calc_variable(volacc, 'Volume', 'average_volume.dat')
+   ! Do some averaging for the squared volume
+   call calc_variable(volsqacc, 'Squared Volume', 'average_sqvolume.dat')
+
+   ! write the final configuration to file
+   open(newunit=u, file = 'configuration.dat', status = 'unknown')
+   do i = 1, np
+      write(unit=u, fmt='(2f14.8)') x(i), y(i)
+   end do
+   close(u)
 end program main
