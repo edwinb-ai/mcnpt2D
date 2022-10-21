@@ -10,9 +10,12 @@ program main
    ! Local scalar variables
    real(dp) :: d, volratio, rng, ener
    real(dp) :: rhoaverage, rhoave, current_volume, rhoprom
-   integer :: rngint, i, j, k, nattemp, nacc
+   integer :: rngint, i, j, k, l, nattemp, nacc
    integer :: thermsteps, eqsteps, u, vacc, vattemp
    integer :: v, avevolfreq, accsize, w
+   ! For writing to files
+   character(len=8) :: i_char
+   character(len=14) :: j_char, k_char, l_char, m_char
    ! Local arrays
    real(dp), allocatable :: x(:), y(:)
    real(dp), allocatable :: rhoacc(:), volacc(:), volsqacc(:)
@@ -45,6 +48,7 @@ program main
    write(unit=output_unit, fmt='(a,f8.4)') 'Reduced pressure = ', pressure
    write(unit=output_unit, fmt='(a,f8.4)') 'Reference reduced density = ', rho
    write(unit=output_unit, fmt='(a,f8.4)') 'Reduced temperature = ', ktemp
+   write(unit=output_unit, fmt='(a,f8.4)') 'Shoulder length = ', lambdasw
 
    ! Allocate memory for arrays
    allocate(x(np), y(np))
@@ -87,10 +91,10 @@ program main
 
          if (rngint <= np) then
             call mcmove(x, y, ener, nattemp, nacc)
-            call adjust(nattemp, nacc, del, 0.45_dp)
+            call adjust(nattemp, nacc, del, 0.4_dp, 2)
          else
             call mcvolume(x, y, rhoave, ener, vattemp, vacc)
-            call adjust(vattemp, vacc, dispvol, 0.2_dp)
+            call adjust(vattemp, vacc, dispvol, 0.2_dp, 1)
          end if
       end do
 
@@ -150,9 +154,25 @@ program main
          write(unit=v, fmt='(2f17.10)') rhoprom, current_volume
 
          ! Save the positions and simulation information
-         do i = 1, np
-            write(unit=u, fmt='(2f14.8)') x(i), y(i)
+         write(unit=w, fmt='(i3)') np
+         write (i_char, '(i8)') 0
+         write(unit=w, fmt='(3a2)') adjustl(i_char), adjustl(i_char), adjustl(i_char)
+         write (j_char, '(f10.6)') boxl
+         write (k_char, '(f8.6)') 0.0_dp
+         write(unit=w, fmt='(a10, 2a9)') adjustl(j_char), adjustl(k_char), adjustl(k_char)
+         write(unit=w, fmt='(a9, a10, a9)') adjustl(k_char), adjustl(j_char), adjustl(k_char)
+         write (j_char, '(f8.6)') 1.0_dp
+         write(unit=w, fmt='(3a9)') adjustl(k_char), adjustl(k_char), adjustl(j_char)
+         do l = 1, np
+            write (i_char, '(i8)') 1
+            write (j_char, '(f12.6)') x(l)
+            write (k_char, '(f14.6)') y(l)
+            write (l_char, '(f8.5)') 0.0_dp
+            write (m_char, '(f8.5)') 1.0_dp
+            write(unit=w, fmt='(a11, a11, a8, a8, a)') adjustl(j_char), adjustl(k_char), &
+            & adjustl(l_char), adjustl(m_char), adjustl(i_char)
          end do
+         write(unit=w, fmt='(a)')
       end if
    end do
 

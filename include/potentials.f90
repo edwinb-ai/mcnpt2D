@@ -37,12 +37,12 @@ module potentials
    real(dp), parameter :: A3sw = lambda3 - delta3
 
 ! Parameters for the true square well potential
-   real(dp), parameter :: lambdasw = 1.4_dp
+   ! real(dp), parameter :: lambdasw = 1.4_dp
 
 ! Export all the potentials
 ! Make them protected so that their parameters can't be modified accidentally
    protected pseudohs, hardsphere, lennardjones, hertzian, &
-      softsphere, yukawa_attr, gaussian, smooth_sw, square_well
+      softsphere, yukawa_attr, gaussian, smooth_sw, square_well, square_shoulder
 
 contains
    subroutine smooth_sw(rij, uij)

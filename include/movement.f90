@@ -109,8 +109,8 @@ contains
    end subroutine mcvolume
 
    ! This subroutine adjusts the displacement of particles
-   subroutine adjust(nattemp, nacc, disp, tol)
-      integer, intent(in) :: nattemp, nacc
+   subroutine adjust(nattemp, nacc, disp, tol, flag)
+      integer, intent(in) :: nattemp, nacc, flag
       real(dp), intent(in) :: tol
       real(dp), intent(inout) :: disp
       ! Local variables
@@ -118,10 +118,19 @@ contains
 
       if (mod(nattemp, nacc) == 0) then
          ratio = real(nacc, dp) / real(nattemp, dp)
-         if (ratio > tol) then
-            disp = disp * 1.05_dp
+         if (ratio >= tol) then
+            ! 1 is volume
+            if (flag == 1) then
+               disp = disp * 1.05_dp
+            else ! This is the case for displacement
+               disp = disp * 1.2_dp
+            end if
          else
-            disp = disp / 1.05_dp
+            if (flag == 1) then
+               disp = disp / 1.05_dp
+            else
+               disp = disp / 1.2_dp
+            end if
          end if
       end if
    end subroutine adjust
