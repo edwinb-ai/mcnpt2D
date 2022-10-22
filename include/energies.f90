@@ -34,7 +34,7 @@ contains
             rij = norm2([xij, yij])
 
             if (rij < rc) then
-               call square_shoulder(rij, uij)
+               call hardsphere(rij, uij)
                ener = ener + uij
             end if
          end do
@@ -65,7 +65,7 @@ contains
          rij = norm2([xij, yij])
 
          if (rij < rc) then
-            call square_shoulder(rij, uij)
+            call hardsphere(rij, uij)
             dener = dener + uij
          end if
       end do
